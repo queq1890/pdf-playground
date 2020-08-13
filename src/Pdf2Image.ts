@@ -1,85 +1,66 @@
-// @ts-nocheck
-
 // TODO:
 // - typings
 // - better interface
 
-import PDFJS from "pdfjs-dist/webpack";
+import PDFJS, { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist/webpack";
+
+interface Option {
+  scale?: number;
+  width: number;
+  height: number;
+  image?: "jpeg" | "webp" | "png";
+}
 
 class Pdf2Image {
-  pdfDoc: any;
-  height: any;
-  width: any;
-  /**
-   * @param {string} pdfUrl PDFのURL
-   * @return {Pdf2Image} Pdf2Imageのインスタンスを返す
-   */
-  static async open(pdfUrl) {
+  pdfDoc: PDFDocumentProxy;
+
+  constructor(pdfDoc: PDFDocumentProxy) {
+    this.pdfDoc = pdfDoc;
+  }
+
+  static async open(pdfUrl: string) {
     const pdfDoc = await PDFJS.getDocument({ url: pdfUrl }).promise;
     return new Pdf2Image(pdfDoc);
   }
 
-  /**
-   * @param {PDFJS.PDFDocumentProxy} pdfDoc
-   */
-  constructor(pdfDoc) {
-    this.pdfDoc = pdfDoc;
-  }
-
-  /**
-   * @return {Number} ページ数
-   */
   numPages() {
     return this.pdfDoc.numPages;
   }
 
   /**
    * PDFの指定ページを画像にし、画像のDataUrlを返す
-   * @param {Number} pageNo ページ番号(1〜)
-   * @param {Object} option
-   *                  {scale:画像の倍率}, 画像を指定した倍率で拡大する
-   *                  {width:最大幅, height:最大高さ} 画像を指定した領域に収まるサイズにする
-   *                  {image:'jpeg|webp|png|'} 画像フォーマット
-   * @return {String} ページ画像のDataUrl
    */
-  async getImageDataUrl(pageNo, option) {
+  async getImageDataUrl(pageNo: number, option: Option) {
     const page = await this.pdfDoc.getPage(pageNo);
     const scale = Pdf2Image.calcScale(page, option);
     const viewport = page.getViewport({ scale });
     const canvas = document.createElement("canvas");
     const canvasContext = canvas.getContext("2d");
+
     canvas.height = viewport.height;
     canvas.width = viewport.width;
 
-    // @ts-ignore
-    canvasContext.height = viewport.height;
-    // @ts-ignore
-    canvasContext.width = viewport.width;
+    if (canvasContext) {
+      const renderContext = {
+        canvasContext,
+        viewport,
+      };
 
-    const renderContext = {
-      canvasContext,
-      viewport,
-    };
-    await page.render(renderContext).promise;
-    switch (option.image) {
-      case "jpeg":
-        return canvas.toDataURL("image/jpeg");
-      case "webp":
-        return canvas.toDataURL("image/webp");
-      default:
-        return canvas.toDataURL();
+      await page.render(renderContext).promise;
+      switch (option.image) {
+        case "jpeg":
+          return canvas.toDataURL("image/jpeg");
+        case "webp":
+          return canvas.toDataURL("image/webp");
+        default:
+          return canvas.toDataURL();
+      }
     }
+
+    this.cleanUp(canvas);
   }
 
-  /**
-   *
-   * @param {PDFJS.PDFPageProxy} page
-   * @param {Object} option
-   *                  {scale:画像の倍率}, 画像を指定した倍率で拡大する
-   *                  {width:最大幅, height:最大高さ} 画像を指定した領域に収まるサイズにする
-   * @return {Number} 倍率
-   */
-  static calcScale(page, option) {
+  static calcScale(page: PDFPageProxy, option: Option) {
     if (option.scale !== undefined) {
       return option.scale;
     }
@@ -95,12 +76,8 @@ class Pdf2Image {
 
   /**
    * PDFのすべてのページを画像にし、画像のDataUrlを返す
-   * @param {Object} option
-   *                  {scale:画像の倍率}, 画像を指定した倍率で拡大する
-   *                  {width:最大幅, height:最大高さ} 画像を指定した領域に収まるサイズにする
-   * @return {String[]} ページ画像のDataUrl
    */
-  async getAllImageDataUrl(option) {
+  async getAllImageDataUrl(option: Option) {
     const pages = [];
     const numPages = this.numPages();
     for (let i = 1; i <= numPages; i += 1) {
@@ -108,6 +85,11 @@ class Pdf2Image {
       pages.push(img);
     }
     return pages;
+  }
+
+  cleanUp(canvas: HTMLCanvasElement) {
+    canvas.height = 0;
+    canvas.width = 0;
   }
 }
 

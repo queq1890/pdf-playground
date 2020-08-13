@@ -12,12 +12,12 @@ function App() {
       const url = URL.createObjectURL(file);
       const pdf2image = await Pdf2Image.open(url);
 
-      const images = await pdf2image.getAllImageDataUrl({
+      const image = await pdf2image.getImageDataUrl(2, {
         width: 400,
         height: 400,
       });
 
-      setImg(images[0]);
+      if (image) setImg(image);
     } catch (error) {
       console.log(error);
     }
